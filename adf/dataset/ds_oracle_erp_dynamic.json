@@ -1,0 +1,30 @@
+{
+	"name": "ds_oracle_erp_dynamic",
+	"properties": {
+		"annotations": [],
+		"type": "OracleTable",
+		"schema": [],
+		"parameters": {
+			"SourceSchema": {
+				"type": "String"
+			},
+			"SourceEntity": {
+				"type": "String"
+			}
+		},
+		"typeProperties": {
+			"schema": {
+				"type": "Expression",
+				"value": "@dataset().SourceSchema"
+			},
+			"tableName": {
+				"type": "Expression",
+				"value": "@dataset().SourceEntity"
+			}
+		},
+		"linkedServiceName": {
+			"referenceName": "ls_oracle_erp",
+			"type": "LinkedServiceReference"
+		}
+	}
+}

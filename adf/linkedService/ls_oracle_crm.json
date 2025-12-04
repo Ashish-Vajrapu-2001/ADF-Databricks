@@ -1,0 +1,25 @@
+{
+	"name": "ls_oracle_crm",
+	"properties": {
+		"annotations": [],
+		"type": "Oracle",
+		"typeProperties": {
+			"connectionString": "Host=<CRM_HOST>;Port=<CRM_PORT>;ServiceName=<CRM_SERVICE_NAME>;",
+			"userName": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "crm-db-username",
+				"linkedServiceName": "ls_akv"
+			},
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "crm-db-password",
+				"linkedServiceName": "ls_akv"
+			},
+			"encryptedCredential": "AKV|ls_akv|crm-db-connection"
+		},
+		"connectVia": {
+			"referenceName": "AutoResolveIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

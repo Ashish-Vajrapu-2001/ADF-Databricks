@@ -1,0 +1,153 @@
+{
+	"name": "pl_bronze_ingest_master",
+	"properties": {
+		"description": "Master pipeline to orchestrate Bronze layer ingestion for all defined entities based on metadata.",
+		"activities": [
+			{
+				"name": "GetSourceMetadata",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "JsonSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true
+						},
+						"formatSettings": {
+							"type": "JsonReadSettings"
+						}
+					},
+					"dataset": {
+						"referenceName": "ds_adls_gen2_config_json",
+						"type": "DatasetReference",
+						"parameters": {
+							"ContainerName": "config",
+							"FolderPath": "metadata",
+							"FileName": "metadata_clv_sources.json"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_SourceEntity",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "GetSourceMetadata",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('GetSourceMetadata').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 5,
+					"activities": [
+						{
+							"name": "Execute_JDBC_Ingestion",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "pl_bronze_ingest_jdbc_dynamic",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"Environment": {
+										"value": "@pipeline().parameters.Environment",
+										"type": "Expression"
+									},
+									"SourceSystem": {
+										"value": "@item().SourceSystem",
+										"type": "Expression"
+									},
+									"SourceSchema": {
+										"value": "@item().SourceSchema",
+										"type": "Expression"
+									},
+									"SourceEntity": {
+										"value": "@item().SourceEntity",
+										"type": "Expression"
+									},
+									"WatermarkColumn": {
+										"value": "@item().WatermarkColumn",
+										"type": "Expression"
+									}
+								}
+							},
+							"condition": {
+								"value": "@or(equals(item().IngestionType, 'CDC'), equals(item().IngestionType, 'Batch-JDBC'), equals(item().IngestionType, 'Incremental-JDBC'))",
+								"type": "Expression"
+							}
+						},
+						{
+							"name": "Execute_API_Ingestion",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "pl_bronze_ingest_api_dynamic",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"Environment": {
+										"value": "@pipeline().parameters.Environment",
+										"type": "Expression"
+									},
+									"SourceSystem": {
+										"value": "@item().SourceSystem",
+										"type": "Expression"
+									},
+									"SourceSchema": {
+										"value": "@item().SourceSchema",
+										"type": "Expression"
+									},
+									"SourceEntity": {
+										"value": "@item().SourceEntity",
+										"type": "Expression"
+									},
+									"ApiRelativeUrl": {
+										"value": "@item().ApiRelativeUrl",
+										"type": "Expression"
+									}
+								}
+							},
+							"condition": {
+								"value": "@equals(item().IngestionType, 'Batch-API')",
+								"type": "Expression"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"Environment": {
+				"type": "String",
+				"defaultValue": "dev"
+			}
+		},
+		"folder": {
+			"name": "Bronze_Orchestration"
+		}
+	}
+}

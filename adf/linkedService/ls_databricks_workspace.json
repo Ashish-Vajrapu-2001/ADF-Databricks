@@ -1,0 +1,41 @@
+{
+	"name": "ls_databricks_workspace",
+	"properties": {
+		"annotations": [],
+		"type": "AzureDatabricks",
+		"typeProperties": {
+			"domain": "https://adb-<workspace-id>.<random-string>.azuredatabricks.net",
+			"newClusterVersion": "13.3.x-photon-scala2.12",
+			"newClusterNumOfWorker": "1",
+			"newClusterSparkEnvVars": {
+				"PYSPARK_PYTHON": "/databricks/python/bin/python"
+			},
+			"newClusterNodeType": "Standard_DS3_v2",
+			"newClusterInitScripts": [],
+			"newClusterCustomTags": {
+				"Project": "CLVAnalytics",
+				"Environment": {
+					"type": "Expression",
+					"value": "@pipeline().parameters.Environment"
+				}
+			},
+			"newClusterSparkConf": {
+				"spark.databricks.io.cache.enabled": "true"
+			}
+		},
+		"connectVia": {
+			"referenceName": "AutoResolveIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		},
+		"description": "Databricks Linked Service using Managed Identity and parameterized cluster settings.",
+		"parameters": {
+			"Environment": {
+				"type": "String",
+				"defaultValue": "dev"
+			}
+		},
+		"credentials": {
+			"type": "ManagedIdentity"
+		}
+	}
+}

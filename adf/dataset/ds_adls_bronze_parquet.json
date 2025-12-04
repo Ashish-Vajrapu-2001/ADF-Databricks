@@ -1,0 +1,41 @@
+{
+	"name": "ds_adls_bronze_parquet",
+	"properties": {
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "bronze/@{dataset().SourceSystem}/@{dataset().SourceSchema}/@{dataset().SourceEntity}/year=@{formatDateTime(pipeline().TriggerTime, 'yyyy')}/month=@{formatDateTime(pipeline().TriggerTime, 'MM')}/day=@{formatDateTime(pipeline().TriggerTime, 'dd')}",
+				"fileSystem": {
+					"type": "Expression",
+					"value": "@dataset().ContainerName"
+				}
+			},
+			"compressionCodec": "snappy"
+		},
+		"linkedServiceName": {
+			"referenceName": "ls_adls_gen2_bronze",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"ContainerName": {
+				"type": "String",
+				"defaultValue": "bronze"
+			},
+			"SourceSystem": {
+				"type": "String",
+				"defaultValue": "unknown"
+			},
+			"SourceSchema": {
+				"type": "String",
+				"defaultValue": "unknown"
+			},
+			"SourceEntity": {
+				"type": "String",
+				"defaultValue": "unknown"
+			}
+		},
+		"schema": []
+	}
+}

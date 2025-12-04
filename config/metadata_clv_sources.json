@@ -1,0 +1,58 @@
+[
+  {
+    "SourceSystem": "CRM",
+    "SourceSchema": "CRM",
+    "SourceEntity": "CUSTOMERS",
+    "IngestionType": "CDC",
+    "WatermarkColumn": "LAST_UPDATE_DATE",
+    "ApiRelativeUrl": null
+  },
+  {
+    "SourceSystem": "ERP",
+    "SourceSchema": "ERP",
+    "SourceEntity": "OE_ORDER_HEADERS_ALL",
+    "IngestionType": "CDC",
+    "WatermarkColumn": "LAST_UPDATE_DATE",
+    "ApiRelativeUrl": null
+  },
+  {
+    "SourceSystem": "CRM",
+    "SourceSchema": "CRM",
+    "SourceEntity": "INCIDENTS",
+    "IngestionType": "CDC",
+    "WatermarkColumn": "LAST_UPDATE_DATE",
+    "ApiRelativeUrl": null
+  },
+  {
+    "SourceSystem": "MARKETING",
+    "SourceSchema": "MARKETING",
+    "SourceEntity": "MARKETING_CAMPAIGNS",
+    "IngestionType": "Batch-API",
+    "WatermarkColumn": null,
+    "ApiRelativeUrl": "/campaigns"
+  },
+  {
+    "SourceSystem": "CRM",
+    "SourceSchema": "CRM",
+    "SourceEntity": "SURVEYS",
+    "IngestionType": "Batch-JDBC",
+    "WatermarkColumn": "CREATED_DATE",
+    "ApiRelativeUrl": null
+  },
+  {
+    "SourceSystem": "ERP",
+    "SourceSchema": "ERP",
+    "SourceEntity": "ADDRESSES",
+    "IngestionType": "Incremental-JDBC",
+    "WatermarkColumn": "LAST_UPDATE_DATE",
+    "ApiRelativeUrl": null
+  },
+  {
+    "SourceSystem": "ERP",
+    "SourceSchema": "ERP",
+    "SourceEntity": "CITY_TIER_MASTER",
+    "IngestionType": "Incremental-JDBC",
+    "WatermarkColumn": "LAST_UPDATE_DATE",
+    "ApiRelativeUrl": null
+  }
+]

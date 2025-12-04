@@ -1,0 +1,25 @@
+{
+	"name": "ls_oracle_erp",
+	"properties": {
+		"annotations": [],
+		"type": "Oracle",
+		"typeProperties": {
+			"connectionString": "Host=<ERP_HOST>;Port=<ERP_PORT>;ServiceName=<ERP_SERVICE_NAME>;",
+			"userName": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "erp-db-username",
+				"linkedServiceName": "ls_akv"
+			},
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "erp-db-password",
+				"linkedServiceName": "ls_akv"
+			},
+			"encryptedCredential": "AKV|ls_akv|erp-db-connection"
+		},
+		"connectVia": {
+			"referenceName": "AutoResolveIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

@@ -1,0 +1,293 @@
+{
+	"name": "pl_bronze_ingest_api_dynamic",
+	"properties": {
+		"description": "Generic pipeline for ingesting data from REST APIs to Bronze layer.",
+		"activities": [
+			{
+				"name": "CallApiAndGetData",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.01:00:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": true,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@concat(json(resolve(linkedService('ls_marketing_api').properties.typeProperties.url)).value, pipeline().parameters.ApiRelativeUrl)",
+						"type": "Expression"
+					},
+					"method": "GET",
+					"headers": {
+						"X-API-KEY": {
+							"value": "@activity('GetApiKeyFromKV').output.value",
+							"type": "Expression"
+						},
+						"Content-Type": "application/json"
+					},
+					"authentication": {
+						"type": "Basic",
+						"username": {
+							"value": "@json(activity('GetMarketingApiCredentials').output.secretValue).username",
+							"type": "Expression"
+						},
+						"password": {
+							"value": "@json(activity('GetMarketingApiCredentials').output.secretValue).password",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Copy_API_Response_To_Bronze",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "CallApiAndGetData",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "1.00:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "WebSource",
+						"additionalColumns": [
+							{
+								"name": "SourceFileName",
+								"value": "marketing_api_@{formatDateTime(pipeline().TriggerTime, 'yyyyMMddHHmmss')}.json"
+							}
+						],
+						"httpRequestTimeout": "00:01:00"
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings",
+							"copyBehavior": "FlattenHierarchy"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings",
+							"filePattern": "setOfObjects"
+						}
+					},
+					"dataIntegrationUnits": 2,
+					"faultTolerance": {
+						"type": "true",
+						"unsupportedColumnType": "Skip",
+						"redirectIncompatibleRowSettings": {
+							"linkedServiceName": {
+								"referenceName": "ls_adls_gen2_bronze",
+								"type": "LinkedServiceReference"
+							},
+							"path": "bronze/@{pipeline().parameters.SourceSystem}/@{pipeline().parameters.SourceSchema}/@{pipeline().parameters.SourceEntity}/dlq/year=@{formatDateTime(pipeline().TriggerTime, 'yyyy')}/month=@{formatDateTime(pipeline().TriggerTime, 'MM')}/day=@{formatDateTime(pipeline().TriggerTime, 'dd')}"
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_marketing_api_json_source",
+						"type": "DatasetReference",
+						"parameters": {
+							"RelativeUrl": {
+								"value": "@pipeline().parameters.ApiRelativeUrl",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_adls_bronze_json",
+						"type": "DatasetReference",
+						"parameters": {
+							"ContainerName": "bronze",
+							"SourceSystem": {
+								"value": "@pipeline().parameters.SourceSystem",
+								"type": "Expression"
+							},
+							"SourceSchema": {
+								"value": "@pipeline().parameters.SourceSchema",
+								"type": "Expression"
+							},
+							"SourceEntity": {
+								"value": "@pipeline().parameters.SourceEntity",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			},
+			{
+				"name": "RegisterBronzeTable",
+				"type": "DatabricksNotebook",
+				"dependsOn": [
+					{
+						"activity": "Copy_API_Response_To_Bronze",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "databricks/notebooks/bronze/nb_bronze_uc_table_manager",
+					"baseParameters": {
+						"source_system": {
+							"value": "@pipeline().parameters.SourceSystem",
+							"type": "Expression"
+						},
+						"source_schema": {
+							"value": "@pipeline().parameters.SourceSchema",
+							"type": "Expression"
+						},
+						"source_entity": {
+							"value": "@pipeline().parameters.SourceEntity",
+							"type": "Expression"
+						},
+						"target_format": "json",
+						"container_name": "bronze"
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_databricks_workspace",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"Environment": {
+							"value": "@pipeline().parameters.Environment",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "LogSuccess",
+				"type": "DatabricksNotebook",
+				"dependsOn": [
+					{
+						"activity": "RegisterBronzeTable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "databricks/notebooks/bronze/nb_central_logger",
+					"baseParameters": {
+						"pipeline_name": { "value": "@pipeline().Pipeline", "type": "Expression" },
+						"run_id": { "value": "@pipeline().RunId", "type": "Expression" },
+						"status": "Succeeded",
+						"message": { "value": "Successfully ingested @{pipeline().parameters.SourceSystem}.@{pipeline().parameters.SourceSchema}.@{pipeline().parameters.SourceEntity}", "type": "Expression" },
+						"source_system": { "value": "@pipeline().parameters.SourceSystem", "type": "Expression" },
+						"source_entity": { "value": "@pipeline().parameters.SourceEntity", "type": "Expression" },
+						"rows_copied": { "value": "@activity('Copy_API_Response_To_Bronze').output.rowsCopied", "type": "Expression" },
+						"data_read": { "value": "@activity('Copy_API_Response_To_Bronze').output.dataRead", "type": "Expression" },
+						"data_written": { "value": "@activity('Copy_API_Response_To_Bronze').output.dataWritten", "type": "Expression" }
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_databricks_workspace",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"Environment": {
+							"value": "@pipeline().parameters.Environment",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "LogFailure",
+				"type": "DatabricksNotebook",
+				"dependsOn": [
+					{
+						"activity": "CallApiAndGetData",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "databricks/notebooks/bronze/nb_central_logger",
+					"baseParameters": {
+						"pipeline_name": { "value": "@pipeline().Pipeline", "type": "Expression" },
+						"run_id": { "value": "@pipeline().RunId", "type": "Expression" },
+						"status": "Failed",
+						"message": { "value": "Failed to ingest @{pipeline().parameters.SourceSystem}.@{pipeline().parameters.SourceSchema}.@{pipeline().parameters.SourceEntity}: @activity('CallApiAndGetData').Error.Message", "type": "Expression" },
+						"source_system": { "value": "@pipeline().parameters.SourceSystem", "type": "Expression" },
+						"source_entity": { "value": "@pipeline().parameters.SourceEntity", "type": "Expression" }
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_databricks_workspace",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"Environment": {
+							"value": "@pipeline().parameters.Environment",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"Environment": {
+				"type": "String",
+				"defaultValue": "dev"
+			},
+			"SourceSystem": {
+				"type": "String",
+				"defaultValue": "MARKETING"
+			},
+			"SourceSchema": {
+				"type": "String",
+				"defaultValue": "MARKETING"
+			},
+			"SourceEntity": {
+				"type": "String",
+				"defaultValue": "MARKETING_CAMPAIGNS"
+			},
+			"ApiRelativeUrl": {
+				"type": "String",
+				"defaultValue": "/campaigns"
+			}
+		},
+		"folder": {
+			"name": "Bronze_Ingestion"
+		}
+	}
+}

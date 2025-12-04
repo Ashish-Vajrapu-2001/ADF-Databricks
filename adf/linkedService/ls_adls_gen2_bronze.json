@@ -1,0 +1,25 @@
+{
+	"name": "ls_adls_gen2_bronze",
+	"properties": {
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://<your_adls_gen2_name>.dfs.core.windows.net",
+			"accountKind": "StorageV2"
+		},
+		"connectVia": {
+			"referenceName": "AutoResolveIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		},
+		"description": "ADLS Gen2 Linked Service for Bronze layer using Managed Identity.",
+		"parameters": {
+			"storageAccountName": {
+				"type": "String",
+				"defaultValue": "<your_adls_gen2_name>"
+			}
+		},
+		"credentials": {
+			"type": "ManagedIdentity"
+		}
+	}
+}

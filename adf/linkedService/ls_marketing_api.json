@@ -1,0 +1,26 @@
+{
+	"name": "ls_marketing_api",
+	"properties": {
+		"annotations": [],
+		"type": "HttpServer",
+		"typeProperties": {
+			"url": "https://api.marketingplatform.com",
+			"enableServerCertificateValidation": true,
+			"authenticationType": "Basic",
+			"userName": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "marketing-api-user",
+				"linkedServiceName": "ls_akv"
+			},
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"secretName": "marketing-api-password",
+				"linkedServiceName": "ls_akv"
+			}
+		},
+		"connectVia": {
+			"referenceName": "AutoResolveIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}
