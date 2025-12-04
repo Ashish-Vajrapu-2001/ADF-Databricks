@@ -16,7 +16,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"notebookPath": "databricks/notebooks/bronze/nb_watermark_manager",
+					"notebookPath": "/databricks/notebooks/bronze/nb_watermark_manager",
 					"baseParameters": {
 						"action": "get",
 						"source_system": {
@@ -67,7 +67,7 @@
 					"source": {
 						"type": "OracleSource",
 						"oracleReaderQuery": {
-							"value": "SELECT * FROM @{pipeline().parameters.SourceSchema}.@{pipeline().parameters.SourceEntity} WHERE @{pipeline().parameters.WatermarkColumn} > '@{activity('GetLastWatermark').output.runOutput.last_watermark}' AND @{pipeline().parameters.WatermarkColumn} <= '@{formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd HH:mm:ss')}'",
+							"value": "@concat('SELECT * FROM ', pipeline().parameters.SourceSchema, '.', pipeline().parameters.SourceEntity, ' WHERE ', pipeline().parameters.WatermarkColumn, ' > ''', activity('GetLastWatermark').output.runOutput.last_watermark, ''' AND ', pipeline().parameters.WatermarkColumn, ' <= ''', formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd HH:mm:ss'), '''')",
 							"type": "Expression"
 						},
 						"queryTimeout": "02:00:00"
@@ -90,24 +90,21 @@
 						"path": "staging/adf"
 					},
 					"dataIntegrationUnits": 4,
-					"faultTolerance": {
-						"type": "true",
-						"unsupportedColumnType": "Skip",
-						"redirectIncompatibleRowSettings": {
-							"linkedServiceName": {
-								"referenceName": "ls_adls_gen2_bronze",
-								"type": "LinkedServiceReference"
-							},
-							"path": "bronze/@{pipeline().parameters.SourceSystem}/@{pipeline().parameters.SourceSchema}/@{pipeline().parameters.SourceEntity}/dlq/year=@{formatDateTime(pipeline().TriggerTime, 'yyyy')}/month=@{formatDateTime(pipeline().TriggerTime, 'MM')}/day=@{formatDateTime(pipeline().TriggerTime, 'dd')}"
+					"enableSkipIncompatibleRow": true,
+					"redirectIncompatibleRowSettings": {
+						"linkedServiceName": {
+							"referenceName": "ls_adls_gen2_bronze",
+							"type": "LinkedServiceReference"
+						},
+						"path": {
+							"value": "@concat('bronze/', pipeline().parameters.SourceSystem, '/', pipeline().parameters.SourceSchema, '/', pipeline().parameters.SourceEntity, '/dlq/year=', formatDateTime(pipeline().TriggerTime, 'yyyy'), '/month=', formatDateTime(pipeline().TriggerTime, 'MM'), '/day=', formatDateTime(pipeline().TriggerTime, 'dd'))",
+							"type": "Expression"
 						}
 					}
 				},
 				"inputs": [
 					{
-						"referenceName": {
-							"value": "@if(equals(pipeline().parameters.SourceSystem, 'ERP'), 'ds_oracle_erp_dynamic', 'ds_oracle_crm_dynamic')",
-							"type": "Expression"
-						},
+						"referenceName": "ds_oracle_erp_dynamic",
 						"type": "DatasetReference",
 						"parameters": {
 							"SourceSchema": {
@@ -163,7 +160,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"notebookPath": "databricks/notebooks/bronze/nb_watermark_manager",
+					"notebookPath": "/databricks/notebooks/bronze/nb_watermark_manager",
 					"baseParameters": {
 						"action": "set",
 						"source_system": {
@@ -215,7 +212,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"notebookPath": "databricks/notebooks/bronze/nb_bronze_uc_table_manager",
+					"notebookPath": "/databricks/notebooks/bronze/nb_bronze_uc_table_manager",
 					"baseParameters": {
 						"source_system": {
 							"value": "@pipeline().parameters.SourceSystem",
@@ -264,17 +261,41 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"notebookPath": "databricks/notebooks/bronze/nb_central_logger",
+					"notebookPath": "/databricks/notebooks/bronze/nb_central_logger",
 					"baseParameters": {
-						"pipeline_name": { "value": "@pipeline().Pipeline", "type": "Expression" },
-						"run_id": { "value": "@pipeline().RunId", "type": "Expression" },
+						"pipeline_name": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"run_id": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
 						"status": "Succeeded",
-						"message": { "value": "Successfully ingested @{pipeline().parameters.SourceSystem}.@{pipeline().parameters.SourceSchema}.@{pipeline().parameters.SourceEntity}", "type": "Expression" },
-						"source_system": { "value": "@pipeline().parameters.SourceSystem", "type": "Expression" },
-						"source_entity": { "value": "@pipeline().parameters.SourceEntity", "type": "Expression" },
-						"rows_copied": { "value": "@activity('Copy_Data_To_Bronze').output.rowsCopied", "type": "Expression" },
-						"data_read": { "value": "@activity('Copy_Data_To_Bronze').output.dataRead", "type": "Expression" },
-						"data_written": { "value": "@activity('Copy_Data_To_Bronze').output.dataWritten", "type": "Expression" }
+						"message": {
+							"value": "@concat('Successfully ingested ', pipeline().parameters.SourceSystem, '.', pipeline().parameters.SourceSchema, '.', pipeline().parameters.SourceEntity)",
+							"type": "Expression"
+						},
+						"source_system": {
+							"value": "@pipeline().parameters.SourceSystem",
+							"type": "Expression"
+						},
+						"source_entity": {
+							"value": "@pipeline().parameters.SourceEntity",
+							"type": "Expression"
+						},
+						"rows_copied": {
+							"value": "@string(activity('Copy_Data_To_Bronze').output.rowsCopied)",
+							"type": "Expression"
+						},
+						"data_read": {
+							"value": "@string(activity('Copy_Data_To_Bronze').output.dataRead)",
+							"type": "Expression"
+						},
+						"data_written": {
+							"value": "@string(activity('Copy_Data_To_Bronze').output.dataWritten)",
+							"type": "Expression"
+						}
 					}
 				},
 				"linkedServiceName": {
@@ -308,14 +329,29 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"notebookPath": "databricks/notebooks/bronze/nb_central_logger",
+					"notebookPath": "/databricks/notebooks/bronze/nb_central_logger",
 					"baseParameters": {
-						"pipeline_name": { "value": "@pipeline().Pipeline", "type": "Expression" },
-						"run_id": { "value": "@pipeline().RunId", "type": "Expression" },
+						"pipeline_name": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"run_id": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
 						"status": "Failed",
-						"message": { "value": "Failed to ingest @{pipeline().parameters.SourceSystem}.@{pipeline().parameters.SourceSchema}.@{pipeline().parameters.SourceEntity}: @activity('Copy_Data_To_Bronze').Error.Message", "type": "Expression" },
-						"source_system": { "value": "@pipeline().parameters.SourceSystem", "type": "Expression" },
-						"source_entity": { "value": "@pipeline().parameters.SourceEntity", "type": "Expression" }
+						"message": {
+							"value": "@concat('Failed to ingest ', pipeline().parameters.SourceSystem, '.', pipeline().parameters.SourceSchema, '.', pipeline().parameters.SourceEntity, ': ', activity('Copy_Data_To_Bronze').error.message)",
+							"type": "Expression"
+						},
+						"source_system": {
+							"value": "@pipeline().parameters.SourceSystem",
+							"type": "Expression"
+						},
+						"source_entity": {
+							"value": "@pipeline().parameters.SourceEntity",
+							"type": "Expression"
+						}
 					}
 				},
 				"linkedServiceName": {
