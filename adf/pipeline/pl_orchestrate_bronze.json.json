@@ -1,0 +1,198 @@
+{
+  "name": "pl_orchestrate_bronze",
+  "properties": {
+    "activities": [
+      {
+        "name": "ExecutePipeline_Extract_SRC001",
+        "type": "ExecutePipeline",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the extraction pipeline for Source System 001 (ERP)."
+          }
+        ],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "pl_extract_src001",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true
+        }
+      },
+      {
+        "name": "ExecutePipeline_Extract_SRC002",
+        "type": "ExecutePipeline",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the extraction pipeline for Source System 002 (CRM)."
+          }
+        ],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "pl_extract_src002",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true
+        }
+      },
+      {
+        "name": "ExecutePipeline_Extract_SRC003",
+        "type": "ExecutePipeline",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the extraction pipeline for Source System 003 (Marketing)."
+          }
+        ],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "pl_extract_src003",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true
+        }
+      },
+      {
+        "name": "Trigger_DLT_Bronze_SRC001",
+        "type": "DatabricksPipeline",
+        "dependsOn": [
+          {
+            "activity": "ExecutePipeline_Extract_SRC001",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the Delta Live Tables pipeline for Bronze layer processing of Source System 001 data."
+          }
+        ],
+        "typeProperties": {
+          "pipelineName": "dlt_bronze_src001",
+          "timeoutInMinutes": 720,
+          "numRetries": 3,
+          "retryIntervalInSeconds": 30
+        },
+        "linkedServiceName": {
+          "referenceName": "ls_databricks_workspace",
+          "type": "LinkedServiceReference"
+        }
+      },
+      {
+        "name": "Trigger_DLT_Bronze_SRC002",
+        "type": "DatabricksPipeline",
+        "dependsOn": [
+          {
+            "activity": "ExecutePipeline_Extract_SRC002",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the Delta Live Tables pipeline for Bronze layer processing of Source System 002 data."
+          }
+        ],
+        "typeProperties": {
+          "pipelineName": "dlt_bronze_src002",
+          "timeoutInMinutes": 720,
+          "numRetries": 3,
+          "retryIntervalInSeconds": 30
+        },
+        "linkedServiceName": {
+          "referenceName": "ls_databricks_workspace",
+          "type": "LinkedServiceReference"
+        }
+      },
+      {
+        "name": "Trigger_DLT_Bronze_SRC003",
+        "type": "DatabricksPipeline",
+        "dependsOn": [
+          {
+            "activity": "ExecutePipeline_Extract_SRC003",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Triggers the Delta Live Tables pipeline for Bronze layer processing of Source System 003 data."
+          }
+        ],
+        "typeProperties": {
+          "pipelineName": "dlt_bronze_src003",
+          "timeoutInMinutes": 720,
+          "numRetries": 3,
+          "retryIntervalInSeconds": 30
+        },
+        "linkedServiceName": {
+          "referenceName": "ls_databricks_workspace",
+          "type": "LinkedServiceReference"
+        }
+      }
+    ],
+    "parameters": {},
+    "annotations": [
+      "adf",
+      "pipeline",
+      "orchestration",
+      "master"
+    ],
+    "folder": {
+      "name": "Bronze/Orchestration"
+    },
+    "description": "Master ADF pipeline to orchestrate entire Bronze layer - triggers extraction and DLT processing"
+  }
+}
