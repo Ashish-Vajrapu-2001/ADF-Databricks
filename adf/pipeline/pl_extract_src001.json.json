@@ -1,0 +1,553 @@
+{
+  "name": "pl_extract_src001",
+  "properties": {
+    "activities": [
+      {
+        "name": "GetEntitiesToProcess",
+        "type": "Lookup",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Retrieves the list of entities to process from the metadata configuration file."
+          }
+        ],
+        "typeProperties": {
+          "source": {
+            "type": "JsonSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": true,
+              "enablePartitionDiscovery": false
+            },
+            "formatSettings": {
+              "type": "JsonReadSettings"
+            }
+          },
+          "dataset": {
+            "referenceName": "ds_adls_metadata_json",
+            "type": "DatasetReference",
+            "parameters": {
+              "containerName": "@pipeline().parameters.adlsContainer",
+              "folderPath": "@pipeline().parameters.metadataFolderPath",
+              "fileName": "bronze_dataflowspec.json"
+            }
+          },
+          "firstRowOnly": false
+        }
+      },
+      {
+        "name": "FilterSrc001Entities",
+        "type": "Filter",
+        "dependsOn": [
+          {
+            "activity": "GetEntitiesToProcess",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:10:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Filters the retrieved entities to only include those belonging to the current source system (SRC-001)."
+          }
+        ],
+        "typeProperties": {
+          "items": {
+            "value": "@activity('GetEntitiesToProcess').output.value",
+            "type": "Expression"
+          },
+          "condition": {
+            "value": "@equals(item().source_system_id, pipeline().parameters.sourceSystem)",
+            "type": "Expression"
+          }
+        }
+      },
+      {
+        "name": "CheckIfEntitiesFound",
+        "type": "IfCondition",
+        "dependsOn": [
+          {
+            "activity": "FilterSrc001Entities",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "userProperties": [
+          {
+            "name": "Description",
+            "value": "Validates if any entities were found for the source system. Fails if no entities are configured."
+          }
+        ],
+        "expression": {
+          "value": "@empty(activity('FilterSrc001Entities').output.value)",
+          "type": "Expression"
+        },
+        "activitiesIfTrue": [
+          {
+            "name": "LogNoEntitiesFound",
+            "type": "Script",
+            "dependsOn": [],
+            "policy": {
+              "timeout": "0.00:10:00",
+              "retry": 0,
+              "retryIntervalInSeconds": 30,
+              "secureOutput": false,
+              "secureInput": false
+            },
+            "userProperties": [
+              {
+                "name": "Description",
+                "value": "Logs a message when no entities are found for the specified source system."
+              }
+            ],
+            "typeProperties": {
+              "scriptBlock": {
+                "value": "INSERT INTO dbo.PipelineLogs (PipelineName, ActivityName, EntityName, Status, Message, LogTimestamp) VALUES ('@{pipeline().Pipeline}', 'CheckIfEntitiesFound', 'N/A', 'Failed', 'No entities found for source system @{pipeline().parameters.sourceSystem}.', GETUTCDATE());",
+                "type": "Expression"
+              },
+              "scriptLinkedService": {
+                "referenceName": "ls_azuresql_logging",
+                "type": "LinkedServiceReference"
+              }
+            }
+          },
+          {
+            "name": "FailNoEntitiesFound",
+            "type": "Fail",
+            "dependsOn": [
+              {
+                "activity": "LogNoEntitiesFound",
+                "dependencyConditions": [
+                  "Succeeded"
+                ]
+              }
+            ],
+            "userProperties": [
+              {
+                "name": "Description",
+                "value": "Fails the pipeline if no entities are found for the source system."
+              }
+            ],
+            "typeProperties": {
+              "message": "No entities found for source system @{pipeline().parameters.sourceSystem}.",
+              "errorCode": "2000"
+            }
+          }
+        ],
+        "activitiesIfFalse": [
+          {
+            "name": "IterateSrc001Entities",
+            "type": "ForEach",
+            "dependsOn": [],
+            "policy": {
+              "timeout": "0.00:10:00",
+              "retry": 1,
+              "retryIntervalInSeconds": 30,
+              "secureOutput": false,
+              "secureInput": false
+            },
+            "userProperties": [
+              {
+                "name": "Description",
+                "value": "Iterates through each SRC-001 entity to extract data incrementally using Change Tracking."
+              }
+            ],
+            "typeProperties": {
+              "items": {
+                "value": "@activity('FilterSrc001Entities').output.value",
+                "type": "Expression"
+              },
+              "isSequential": false,
+              "batchCount": 5,
+              "activities": [
+                {
+                  "name": "GetCurrentWatermark",
+                  "type": "Lookup",
+                  "dependsOn": [],
+                  "policy": {
+                    "timeout": "0.00:10:00",
+                    "retry": 1,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                  },
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Retrieves the last processed watermark for the current entity from ADLS."
+                    }
+                  ],
+                  "typeProperties": {
+                    "source": {
+                      "type": "JsonSource",
+                      "storeSettings": {
+                        "type": "AzureBlobFSReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                      },
+                      "formatSettings": {
+                        "type": "JsonReadSettings"
+                      }
+                    },
+                    "dataset": {
+                      "referenceName": "ds_adls_watermark_json",
+                      "type": "DatasetReference",
+                      "parameters": {
+                        "containerName": "@pipeline().parameters.adlsContainer",
+                        "folderPath": "@pipeline().parameters.watermarkFolderPath",
+                        "fileName": "@concat(pipeline().parameters.sourceSystem, '_', item().bronze_table_name_short, '_watermark.json')"
+                      }
+                    },
+                    "firstRowOnly": true
+                  }
+                },
+                {
+                  "name": "SetInitialWatermark",
+                  "type": "SetVariable",
+                  "dependsOn": [
+                    {
+                      "activity": "GetCurrentWatermark",
+                      "dependencyConditions": [
+                        "Succeeded"
+                      ]
+                    }
+                  ],
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Sets the initial watermark value. Uses '1900-01-01T00:00:00.000Z' if no previous watermark is found."
+                    }
+                  ],
+                  "typeProperties": {
+                    "variableName": "currentWatermark",
+                    "value": {
+                      "value": "@if(empty(activity('GetCurrentWatermark').output.firstRow), '1900-01-01T00:00:00.000Z', activity('GetCurrentWatermark').output.firstRow.watermarkValue)",
+                      "type": "Expression"
+                    }
+                  }
+                },
+                {
+                  "name": "ExtractAndLandEntity",
+                  "type": "Copy",
+                  "dependsOn": [
+                    {
+                      "activity": "SetInitialWatermark",
+                      "dependencyConditions": [
+                        "Succeeded"
+                      ]
+                    }
+                  ],
+                  "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 3,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                  },
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Extracts incremental data from Azure SQL using Change Tracking and lands it as Parquet in ADLS raw zone."
+                    }
+                  ],
+                  "typeProperties": {
+                    "source": {
+                      "type": "AzureSqlSource",
+                      "enableDataIntegration": true,
+                      "dataIntegrationSettings": {
+                        "type": "ChangeTracking",
+                        "changeTrackingStartTime": {
+                          "value": "@variables('currentWatermark')",
+                          "type": "Expression"
+                        }
+                      },
+                      "queryTimeout": "02:00:00",
+                      "partitionOption": "None"
+                    },
+                    "sink": {
+                      "type": "ParquetSink",
+                      "storeSettings": {
+                        "type": "AzureBlobFSWriteSettings",
+                        "copyBehavior": "PreserveHierarchy"
+                      },
+                      "formatSettings": {
+                        "type": "ParquetWriteSettings",
+                        "maxRowsPerFile": 1000000,
+                        "fileNamePrefix": "@item().bronze_table_name_short"
+                      }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                      "type": "TabularTranslator",
+                      "typeConversion": true,
+                      "typeConversionSettings": {
+                        "allowDataTruncation": true,
+                        "treatBooleanAsNumber": false
+                      }
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "referenceName": "ds_azuresql_src001",
+                      "type": "DatasetReference",
+                      "parameters": {
+                        "schemaName": "@split(item().source_schema_table, '.')[0]",
+                        "tableName": "@split(item().source_schema_table, '.')[1]"
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "referenceName": "ds_adls_bronze_src001",
+                      "type": "DatasetReference",
+                      "parameters": {
+                        "containerName": "@pipeline().parameters.adlsContainer",
+                        "folderPath": "@concat(pipeline().parameters.adlsRawZonePath, '/', pipeline().parameters.sourceSystem, '/', item().bronze_table_name_short, '/', formatDateTime(utcNow(), 'yyyy/MM/dd'))",
+                        "fileName": "@concat(item().bronze_table_name_short, '_', formatDateTime(utcNow(), 'yyyyMMddHHmmssfff'), '.parquet')"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "SetNextWatermark",
+                  "type": "SetVariable",
+                  "dependsOn": [
+                    {
+                      "activity": "ExtractAndLandEntity",
+                      "dependencyConditions": [
+                        "Succeeded"
+                      ]
+                    }
+                  ],
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Captures the last valid time from Change Tracking as the next watermark."
+                    }
+                  ],
+                  "typeProperties": {
+                    "variableName": "nextWatermark",
+                    "value": {
+                      "value": "@activity('ExtractAndLandEntity').output.dataRead.changeTrackingLastValidTime",
+                      "type": "Expression"
+                    }
+                  }
+                },
+                {
+                  "name": "UpdateWatermarkFile",
+                  "type": "Copy",
+                  "dependsOn": [
+                    {
+                      "activity": "SetNextWatermark",
+                      "dependencyConditions": [
+                        "Succeeded"
+                      ]
+                    }
+                  ],
+                  "policy": {
+                    "timeout": "0.00:10:00",
+                    "retry": 1,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                  },
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Updates the watermark JSON file in ADLS with the new watermark value."
+                    }
+                  ],
+                  "typeProperties": {
+                    "source": {
+                      "type": "JsonSource",
+                      "storeSettings": {
+                        "type": "AzureBlobFSReadSettings"
+                      },
+                      "formatSettings": {
+                        "type": "JsonReadSettings"
+                      }
+                    },
+                    "sink": {
+                      "type": "JsonSink",
+                      "storeSettings": {
+                        "type": "AzureBlobFSWriteSettings"
+                      },
+                      "formatSettings": {
+                        "type": "JsonWriteSettings"
+                      }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                      "type": "TabularTranslator",
+                      "mappings": [
+                        {
+                          "source": {
+                            "path": "$['watermarkValue']"
+                          },
+                          "sink": {
+                            "path": "$['watermarkValue']"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "inputs": [
+                    {
+                      "referenceName": "ds_watermark_source_json",
+                      "type": "DatasetReference",
+                      "parameters": {
+                        "watermarkValue": "@variables('nextWatermark')"
+                      }
+                    }
+                  ],
+                  "outputs": [
+                    {
+                      "referenceName": "ds_adls_watermark_json",
+                      "type": "DatasetReference",
+                      "parameters": {
+                        "containerName": "@pipeline().parameters.adlsContainer",
+                        "folderPath": "@pipeline().parameters.watermarkFolderPath",
+                        "fileName": "@concat(pipeline().parameters.sourceSystem, '_', item().bronze_table_name_short, '_watermark.json')"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "LogEntityIngestion",
+                  "type": "Script",
+                  "dependsOn": [
+                    {
+                      "activity": "ExtractAndLandEntity",
+                      "dependencyConditions": [
+                        "Succeeded"
+                      ]
+                    }
+                  ],
+                  "policy": {
+                    "timeout": "0.00:10:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                  },
+                  "userProperties": [
+                    {
+                      "name": "Description",
+                      "value": "Logs the successful ingestion details for the current entity to a SQL logging table."
+                    }
+                  ],
+                  "typeProperties": {
+                    "scriptBlock": {
+                      "value": "INSERT INTO dbo.PipelineLogs (PipelineName, ActivityName, EntityName, Status, RowsCopied, StartTime, EndTime, Message, LogTimestamp) VALUES ('@{pipeline().Pipeline}', 'ExtractAndLandEntity', '@{item().source_schema_table}', 'Succeeded', @{activity('ExtractAndLandEntity').output.rowsCopied}, '@{activity('ExtractAndLandEntity').output.executionDetails[0].start}', '@{activity('ExtractAndLandEntity').output.executionDetails[0].end}', 'Data extracted and landed successfully. Watermark updated to @{variables('nextWatermark')}.', GETUTCDATE());",
+                      "type": "Expression"
+                    },
+                    "scriptLinkedService": {
+                      "referenceName": "ls_azuresql_logging",
+                      "type": "LinkedServiceReference"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "sourceSystem": {
+        "type": "String",
+        "defaultValue": "src001",
+        "description": "Identifier for the source system (e.g., 'src001')."
+      },
+      "adlsContainer": {
+        "type": "String",
+        "defaultValue": "bronze",
+        "description": "ADLS Gen2 container name for the raw zone."
+      },
+      "adlsRawZonePath": {
+        "type": "String",
+        "defaultValue": "raw",
+        "description": "Base folder path within the ADLS container for raw data."
+      },
+      "metadataFolderPath": {
+        "type": "String",
+        "defaultValue": "_metadata/dataflowspecs",
+        "description": "Folder path in ADLS where metadata configuration files are stored."
+      }
+      ,
+      "watermarkFolderPath": {
+        "type": "String",
+        "defaultValue": "_metadata/watermarks",
+        "description": "Folder path in ADLS where watermark files are stored."
+      }
+    },
+    "variables": {
+      "currentWatermark": {
+        "type": "String",
+        "description": "Stores the watermark value for the current entity being processed."
+      },
+      "nextWatermark": {
+        "type": "String",
+        "description": "Stores the calculated next watermark value after successful data extraction."
+      }
+    },
+    "annotations": [
+      {
+        "name": "adf"
+      },
+      {
+        "name": "pipeline"
+      },
+      {
+        "name": "extraction"
+      },
+      {
+        "name": "src001"
+      },
+      {
+        "name": "source_system",
+        "value": "src001"
+      },
+      {
+        "name": "activities",
+        "value": "Copy Data,Validation,Logging"
+      },
+      {
+        "name": "entities_extracted",
+        "value": "sales.OrderHeaders,sales.OrderLines,master.Addresses,master.CityTierMaster,inventory.Products,inventory.Categories,inventory.Brands"
+      },
+      {
+        "name": "incremental_load",
+        "value": "true"
+      },
+      {
+        "name": "layer",
+        "value": "BRONZE"
+      },
+      {
+        "name": "description",
+        "value": "ADF pipeline to extract data from SRC-001 (Azure SQL ERP) to ADLS raw zone using SQL Server Change Tracking."
+      }
+    ],
+    "folder": {
+      "name": "Bronze/Extraction"
+    }
+  }
+}
